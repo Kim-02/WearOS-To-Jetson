@@ -35,6 +35,11 @@
             android:name="wear-sdk"
             android:required="false" />
 
+        <!-- 포그라운드 유지 및 보안을 위한 설정 -->
+        <service
+            android:name=".presentation.SensorDataService"
+            android:foregroundServiceType="health|dataSync"
+            android:exported="false" />
         <!--
                Set to true if your app is Standalone, that is, it does not require the handheld
                app to run.
