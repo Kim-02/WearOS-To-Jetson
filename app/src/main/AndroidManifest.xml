@@ -5,10 +5,11 @@
 
     <!-- 생체 신호 센서 데이터 액세스 요청을 위함 -->
     <uses-permission android:name="android.permission.BODY_SENSORS" />
-    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" />
+    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" /> <!-- 이건 선택사항 Wear OS에서는 필수가 아님 -->
 
     <!-- 포그라운드 서비스를 위한 액세스 요청 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <!-- 데이터 수집용(화면이 꺼져도 생체데이터 받아와야 한다는 느낌) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
