@@ -17,6 +17,7 @@ class SensorDataService : Service(), SensorEventListener {
     private val channelID = "SensorServiceChannel"
     private lateinit var sensorManager: SensorManager
     private var heartRateSensor: Sensor? = null
+    private var bodyTemperSensor: Sensor? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -25,6 +26,13 @@ class SensorDataService : Service(), SensorEventListener {
         // 1. 센서 매니저 및 심박수 센서 초기화
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+        bodyTemperSensor = sensorManager.getDefaultSensor(69686)
+
+        val deviceSensors: List<Sensor> = sensorManager.getSensorList(Sensor.TYPE_ALL)
+        deviceSensors.forEach { sensor ->
+            Log.d(tag, "찾은 센서: ${sensor.name}, 타입 번호: ${sensor.type}")
+        }
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -43,16 +51,25 @@ class SensorDataService : Service(), SensorEventListener {
             Log.d(tag, "심박수 센서 리스너 등록 성공")
         }
 
+        bodyTemperSensor?.let{
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            Log.d(tag, "체온 센서 리스너 등록 성공")
+        }
+
         return START_STICKY
     }
 
     // 4. 센서 값이 변할 때마다 호출되는 함수
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_HEART_RATE) {
-            val heartRate = event.values[0]
-            Log.d(tag, "현재 심박수: $heartRate bpm")
-
-            // TODO: 나중에 이 부분에 Jetson으로 데이터를 보내는 Ktor 코드가 들어갑니다.
+        when (event?.sensor?.type){
+            Sensor.TYPE_HEART_RATE -> {
+                val heartRate = event.values[0]
+                Log.d(tag, "심박수: $heartRate bpm")
+            }
+            69686 -> {
+                val temperature = event.values[0]
+                Log.d(tag, "체온: $temperature ℃")
+            }
         }
     }
 
