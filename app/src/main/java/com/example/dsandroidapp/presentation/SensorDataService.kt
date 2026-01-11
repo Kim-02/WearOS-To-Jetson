@@ -10,12 +10,17 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import android.provider.Settings
+import java.util.Locale
+import java.util.*
+import java.text.SimpleDateFormat
 
 class SensorDataService : Service(), SensorEventListener {
 
     private val tag = "SensorDataService"
     private val channelID = "SensorServiceChannel"
     private lateinit var sensorManager: SensorManager
+    private lateinit var deviceId: String
     private var heartRateSensor: Sensor? = null
 
     private var lastUpdateTime: Long = 0
@@ -24,6 +29,9 @@ class SensorDataService : Service(), SensorEventListener {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // 워치 고유 ID 가져오기
+        deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
 
         // 1. 센서 매니저 및 심박수 센서 초기화
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
@@ -62,7 +70,10 @@ class SensorDataService : Service(), SensorEventListener {
         if (currentTime - lastUpdateTime >= 5000){
             lastUpdateTime = currentTime
 
-            Log.d(tag, "심박수: $currentHeartRate")
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
+            val readableTime = sdf.format(Date(currentTime))
+
+            Log.d(tag, "[ID: $deviceId] [Time: $readableTime] 심박수: $currentHeartRate")
         }
     }
 
