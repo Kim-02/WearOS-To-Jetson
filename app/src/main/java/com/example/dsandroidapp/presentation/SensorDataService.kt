@@ -17,7 +17,9 @@ class SensorDataService : Service(), SensorEventListener {
     private val channelID = "SensorServiceChannel"
     private lateinit var sensorManager: SensorManager
     private var heartRateSensor: Sensor? = null
-    private var bodyTemperSensor: Sensor? = null
+
+    private var lastUpdateTime: Long = 0
+    private var currentHeartRate: Float = 0f
 
     override fun onCreate() {
         super.onCreate()
@@ -26,13 +28,6 @@ class SensorDataService : Service(), SensorEventListener {
         // 1. 센서 매니저 및 심박수 센서 초기화
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
-        bodyTemperSensor = sensorManager.getDefaultSensor(69686)
-
-        val deviceSensors: List<Sensor> = sensorManager.getSensorList(Sensor.TYPE_ALL)
-        deviceSensors.forEach { sensor ->
-            Log.d(tag, "찾은 센서: ${sensor.name}, 타입 번호: ${sensor.type}")
-        }
-
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -50,26 +45,24 @@ class SensorDataService : Service(), SensorEventListener {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
             Log.d(tag, "심박수 센서 리스너 등록 성공")
         }
-
-        bodyTemperSensor?.let{
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-            Log.d(tag, "체온 센서 리스너 등록 성공")
-        }
-
         return START_STICKY
     }
 
     // 4. 센서 값이 변할 때마다 호출되는 함수
     override fun onSensorChanged(event: SensorEvent?) {
+        val currentTime = System.currentTimeMillis()
+
         when (event?.sensor?.type){
             Sensor.TYPE_HEART_RATE -> {
-                val heartRate = event.values[0]
-                Log.d(tag, "심박수: $heartRate bpm")
+                currentHeartRate = event.values[0]
             }
-            69686 -> {
-                val temperature = event.values[0]
-                Log.d(tag, "체온: $temperature ℃")
-            }
+        }
+
+        // 5초마다 로그
+        if (currentTime - lastUpdateTime >= 5000){
+            lastUpdateTime = currentTime
+
+            Log.d(tag, "심박수: $currentHeartRate")
         }
     }
 
