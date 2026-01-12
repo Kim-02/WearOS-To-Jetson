@@ -2,18 +2,21 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
     namespace = "com.example.dsandroidapp"
     compileSdk {
-        version = release(36)
+        // 36에서 34로 변경
+        version = release(34)
     }
 
     defaultConfig {
         applicationId = "com.example.dsandroidapp"
         minSdk = 30
-        targetSdk = 36
+        // 36에서 34로 변경
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -52,6 +55,12 @@ dependencies {
     implementation(libs.wear.tooling.preview)
     implementation(libs.activity.compose)
     implementation(libs.core.splashscreen)
+
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-cio:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
+
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.ui.tooling)

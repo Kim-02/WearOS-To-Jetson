@@ -2,98 +2,113 @@ package com.example.dsandroidapp.presentation
 
 import android.app.*
 import android.content.Intent
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
-import android.os.Build
-import android.os.IBinder
+import android.content.pm.ServiceInfo // <- Unresolved 에러 해결
+import android.hardware.*
+import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import android.provider.Settings
+import android.Manifest
+import android.content.pm.PackageManager
 import java.util.Locale
 import java.util.*
 import java.text.SimpleDateFormat
 
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.request.*
+import io.ktor.http.*
+import kotlinx.coroutines.*
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class SensorPayload(val id: String, val timestamp: String, val hr: Float)
+
 class SensorDataService : Service(), SensorEventListener {
 
-    private val tag = "SensorDataService"
+    private val tag = "DS_SERVICE"
     private val channelID = "SensorServiceChannel"
     private lateinit var sensorManager: SensorManager
-    private lateinit var deviceId: String
     private var heartRateSensor: Sensor? = null
-
     private var lastUpdateTime: Long = 0
     private var currentHeartRate: Float = 0f
+
+    private val client = HttpClient(CIO) { install(ContentNegotiation) { json() } }
+    private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-
-        // 워치 고유 ID 가져오기
-        deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-
-        // 1. 센서 매니저 및 심박수 센서 초기화
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 2. 포그라운드 서비스 알림 띄우기
         val notification = NotificationCompat.Builder(this, channelID)
-            .setContentTitle("실시간 생체 데이터 수집 중")
-            .setContentText("심박수 데이터를 측정하고 있습니다.")
+            .setContentTitle("DS 실시간 전송")
+            .setContentText("심박수 데이터 전송 중 (192.168.0.12)")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setOngoing(true)
             .build()
 
-        startForeground(1, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(1, notification)
+        }
 
-        // 3. 센서 리스너 등록 (데이터 수집 시작)
-        heartRateSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-            Log.d(tag, "심박수 센서 리스너 등록 성공")
+        if (checkSelfPermission(Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED) {
+            sensorManager.registerListener(this, heartRateSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            Log.i(tag, "✅ 센서 등록 완료")
         }
         return START_STICKY
     }
 
-    // 4. 센서 값이 변할 때마다 호출되는 함수
     override fun onSensorChanged(event: SensorEvent?) {
-        val currentTime = System.currentTimeMillis()
-
-        when (event?.sensor?.type){
-            Sensor.TYPE_HEART_RATE -> {
-                currentHeartRate = event.values[0]
-            }
+        if (event?.sensor?.type == Sensor.TYPE_HEART_RATE) {
+            currentHeartRate = event.values[0]
+            Log.d(tag, "💓 심박수: $currentHeartRate")
         }
 
-        // 5초마다 로그
-        if (currentTime - lastUpdateTime >= 5000){
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastUpdateTime >= 5000) {
             lastUpdateTime = currentTime
+            sendToJetson(currentHeartRate)
+        }
+    }
 
-            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
-            val readableTime = sdf.format(Date(currentTime))
+    private fun sendToJetson(hrValue: Float) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
+        val time = sdf.format(Date())
+        val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
 
-            Log.d(tag, "[ID: $deviceId] [Time: $readableTime] 심박수: $currentHeartRate")
+        serviceScope.launch {
+            try {
+                client.post("http://192.168.0.12:5000/data") {
+                    contentType(ContentType.Application.Json)
+                    setBody(SensorPayload(deviceId, time, hrValue))
+                }
+                Log.i(tag, "🚀 전송 성공: $hrValue")
+            } catch (e: Exception) {
+                Log.e(tag, "📡 전송 실패: ${e.message}")
+            }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
     override fun onBind(intent: Intent?): IBinder? = null
-
     override fun onDestroy() {
         super.onDestroy()
-        sensorManager.unregisterListener(this) // 서비스 종료 시 센서 해제
+        serviceScope.cancel()
+        sensorManager.unregisterListener(this)
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
-                channelID, "Sensor Service Channel",
-                NotificationManager.IMPORTANCE_LOW
-            )
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(serviceChannel)
+            manager.createNotificationChannel(NotificationChannel(channelID, "DS", NotificationManager.IMPORTANCE_LOW))
         }
     }
 }
