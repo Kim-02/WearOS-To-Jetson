@@ -10,17 +10,28 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import android.provider.Settings
+import java.util.Locale
+import java.util.*
+import java.text.SimpleDateFormat
 
 class SensorDataService : Service(), SensorEventListener {
 
     private val tag = "SensorDataService"
     private val channelID = "SensorServiceChannel"
     private lateinit var sensorManager: SensorManager
+    private lateinit var deviceId: String
     private var heartRateSensor: Sensor? = null
+
+    private var lastUpdateTime: Long = 0
+    private var currentHeartRate: Float = 0f
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // 워치 고유 ID 가져오기
+        deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
 
         // 1. 센서 매니저 및 심박수 센서 초기화
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
@@ -42,17 +53,27 @@ class SensorDataService : Service(), SensorEventListener {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
             Log.d(tag, "심박수 센서 리스너 등록 성공")
         }
-
         return START_STICKY
     }
 
     // 4. 센서 값이 변할 때마다 호출되는 함수
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_HEART_RATE) {
-            val heartRate = event.values[0]
-            Log.d(tag, "현재 심박수: $heartRate bpm")
+        val currentTime = System.currentTimeMillis()
 
-            // TODO: 나중에 이 부분에 Jetson으로 데이터를 보내는 Ktor 코드가 들어갑니다.
+        when (event?.sensor?.type){
+            Sensor.TYPE_HEART_RATE -> {
+                currentHeartRate = event.values[0]
+            }
+        }
+
+        // 5초마다 로그
+        if (currentTime - lastUpdateTime >= 5000){
+            lastUpdateTime = currentTime
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
+            val readableTime = sdf.format(Date(currentTime))
+
+            Log.d(tag, "[ID: $deviceId] [Time: $readableTime] 심박수: $currentHeartRate")
         }
     }
 
